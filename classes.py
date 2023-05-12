@@ -23,11 +23,11 @@ class Vacancy:
         self.api = api
 
     def __gt__(self, other):
-        if not other.salary_min:
+        if not other.salary_from:
             return True
-        elif not self.salary_min:
+        elif not self.salary_from:
             return True
-        return self.salary_min >= other.salary_min
+        return self.salary_from >= other.salary_from
 
     def __str__(self):
         salary_from = f'Oт {self.salary_from}' if self.salary_from else ''
@@ -47,7 +47,7 @@ class Connector:
         self.insert(vacancies_json)
 
     def insert(self, vacancies_json):
-        with open(self.__filename, encoding='utf-8') as file:
+        with open(self.__filename, 'w', encoding='utf-8') as file:
             json.dump(vacancies_json, file, ensure_ascii=False, indent=4)
 
     def select(self):
@@ -60,6 +60,21 @@ class Connector:
                              x['salary_to'],
                              x['employer'],
                              x['api']) for x in data]
+        return vacancies
+
+    def sorted_vacancies_by_salary_from_asc(self):
+        vacancies = self.select()
+        vacancies = sorted(vacancies)
+        return vacancies
+
+    def sorted_vacancies_by_salary_from_desc(self):
+        vacancies = self.select()
+        vacancies = sorted(vacancies, reverse=True)
+        return vacancies
+
+    def sorted_vacancies_by_salary_to_asc(self):
+        vacancies = self.select()
+        vacancies = sorted(vacancies, key=lambda x: x.salary_to if x.salary_to else 0)
         return vacancies
 
 
@@ -93,9 +108,9 @@ class HeadHunterAPI(Engine):
     def get_salary(salary):
         formatted_salary = [None, None]
         if salary and salary['from'] and salary['from'] != 0:
-            formatted_salary = salary['from'] if salary['currency'].lower() == 'rur' else salary['from'] * 78
+            formatted_salary[0] = salary['from'] if salary['currency'].lower() == 'rur' else salary['from'] * 78
         if salary and salary['to'] and salary['to'] != 0:
-            formatted_salary = salary['to'] if salary['currency'].lower() == 'rur' else salary['to'] * 78
+            formatted_salary[1] = salary['to'] if salary['currency'].lower() == 'rur' else salary['to'] * 78
         return formatted_salary
 
     def get_request(self):
@@ -104,8 +119,7 @@ class HeadHunterAPI(Engine):
                                 params=self.__params)
         if response.status_code != 200:
             raise ParsingError
-        else:
-            return response.json()['items']
+        return response.json()['items']
 
     def get_formatted_vacancies(self):
         formatted_vacancies = []
@@ -118,11 +132,11 @@ class HeadHunterAPI(Engine):
                 'salary_from': salary_from,
                 'salary_to': salary_to,
                 'employer': vacancy['employer']['name'],
-                'api': vacancy['HeadHunter']
+                'api': 'HeadHunter'
             })
         return formatted_vacancies
 
-    def get_vacancies(self, pages_count=1):
+    def get_vacancies(self, pages_count=10):
         while self.__params['page'] < pages_count:
             print(f"HeadHunter, парсинг страницы {self.__params['page'] + 1}", end=": ")
 
@@ -136,10 +150,10 @@ class HeadHunterAPI(Engine):
             self.__params['page'] += 1
 
 
-class Supperjob(Engine):
+class SupperJob(Engine):
 
     def __init__(self, keyword):
-        self.__headers = {"X-Api-App-Id": os.getenv("SJ_API_KEY")}
+        self.__headers = {"X-Api-App-Id": os.getenv("SUPPER_JOB_API_KEY")}
 
         self.__params = {
             "keyword": keyword,
@@ -163,8 +177,7 @@ class Supperjob(Engine):
                                 params=self.__params)
         if response.status_code != 200:
             raise ParsingError
-        else:
-            return response.json()['items']
+        return response.json()['items']
 
     def get_formatted_vacancies(self):
         formatted_vacancies = []
@@ -176,11 +189,11 @@ class Supperjob(Engine):
                 'salary_from': self.get_salary(vacancy['payment_from'], vacancy['currency']),
                 'salary_to': self.get_salary(vacancy['payment_to'], vacancy['currency']),
                 'employer': vacancy['firm_name'],
-                'api': 'Superjob'
+                'api': 'SupperJob'
             })
         return formatted_vacancies
 
-    def get_vacancies(self, pages_count=1):
+    def get_vacancies(self, pages_count=10):
         while self.__params['page'] < pages_count:
             print(f"SuperJob, парсинг страницы {self.__params['page'] + 1}", end=": ")
             try:
